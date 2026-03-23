@@ -88,6 +88,11 @@ const Dashboard: React.FC = () => {
       addLog("Connected to WebSocket Server", "success");
     });
 
+    socketRef.current.on("connect_error", (err) => {
+      console.warn("WebSocket connection failed, falling back to client-side simulation:", err.message);
+      setIsConnected(false);
+    });
+
     socketRef.current.on("disconnect", () => {
       setIsConnected(false);
       addLog("Disconnected from WebSocket Server", "error");
@@ -102,6 +107,34 @@ const Dashboard: React.FC = () => {
       socketRef.current?.disconnect();
     };
   }, []);
+
+  // Client-side simulation fallback
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    // Run local simulation if simulator is enabled AND (we're not connected OR we're on a known serverless platform)
+    if (simulatorEnabled && !isConnected) {
+      interval = setInterval(() => {
+        const t = Date.now() / 1000;
+        const newData: RobotData = {
+          base: 90 + Math.sin(t) * 45,
+          shoulder: 45 + Math.cos(t * 0.8) * 30,
+          elbow: 90 + Math.sin(t * 1.2) * 40,
+          wrist_pitch: Math.sin(t * 2) * 20,
+          wrist_roll: (t * 50) % 360,
+          gripper: 20 + Math.sin(t * 3) * 10,
+          timestamp: Date.now(),
+          source: "simulator"
+        };
+        setData(newData);
+        setHistory(prev => [...prev.slice(-50), newData]);
+      }, 100);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [simulatorEnabled, isConnected]);
 
   const addLog = (message: string, type: LogEntry["type"] = "info") => {
     setLogs(prev => [
