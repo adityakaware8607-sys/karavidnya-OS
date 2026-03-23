@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { RobotData, LogEntry } from "../types";
 import { RobotScene } from "./RobotArm";
+import { GoogleGenAI } from "@google/genai";
 import { 
   Activity, 
   Cpu, 
@@ -13,7 +14,9 @@ import {
   Pause, 
   Clock,
   Gauge,
-  Database
+  Database,
+  Sparkles,
+  Loader2
 } from "lucide-react";
 import { 
   LineChart, 
@@ -48,7 +51,32 @@ const Dashboard: React.FC = () => {
   const [simulatorEnabled, setSimulatorEnabled] = useState(true);
   const [manualOverride, setManualOverride] = useState(false);
   const [swarmCount, setSwarmCount] = useState(0);
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+
+  const runAiDiagnostic = async () => {
+    setIsAnalyzing(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Analyze this robotic arm telemetry and provide a brief diagnostic (max 2 sentences):
+        Base: ${data.base}°, Shoulder: ${data.shoulder}°, Elbow: ${data.elbow}°, 
+        Wrist P: ${data.wrist_pitch}°, Wrist R: ${data.wrist_roll}°, Gripper: ${data.gripper}%.
+        System Status: ${isConnected ? "Online" : "Offline"}, Source: ${data.source}.`,
+        config: {
+          systemInstruction: "You are a senior robotics engineer providing brief, technical system diagnostics.",
+        }
+      });
+      setAiAnalysis(response.text || "Analysis complete. No anomalies detected.");
+    } catch (error) {
+      console.error("AI Diagnostic failed:", error);
+      setAiAnalysis("Failed to connect to AI diagnostic service.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   useEffect(() => {
     socketRef.current = io();
@@ -380,6 +408,29 @@ const Dashboard: React.FC = () => {
             <div>
               <h3 className="text-[10px] font-bold uppercase text-red-600/80">Safety Protocol</h3>
               <p className="text-[10px] text-slate-500 leading-tight">Emergency stop active. Manual override required for hardware control.</p>
+            </div>
+          </div>
+
+          {/* AI Diagnostics */}
+          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 flex flex-col gap-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-emerald-600 flex items-center gap-2">
+                <Sparkles className="w-3 h-3" /> AI Diagnostics
+              </h2>
+              <button 
+                onClick={runAiDiagnostic}
+                disabled={isAnalyzing}
+                className="text-[10px] bg-emerald-600 text-white px-3 py-1 rounded-lg font-bold hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+              >
+                {isAnalyzing ? <Loader2 className="w-3 h-3 animate-spin" /> : "Run"}
+              </button>
+            </div>
+            <div className="min-h-[60px] flex items-center justify-center">
+              {aiAnalysis ? (
+                <p className="text-[10px] text-slate-600 leading-relaxed italic">"{aiAnalysis}"</p>
+              ) : (
+                <p className="text-[10px] text-slate-300 italic">Click run for real-time AI system analysis</p>
+              )}
             </div>
           </div>
         </section>
