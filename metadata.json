@@ -1,0 +1,5 @@
+{
+  "name": "KARAVIDNYA OS: Digital Twin Dashboard",
+  "description": "Real-time 6-DOF robotic arm monitoring and digital twin system with Three.js visualization.",
+  "requestFramePermissions": []
+}
