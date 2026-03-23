@@ -3,10 +3,15 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import mqtt from "mqtt";
 import path from "path";
-import { createServer as createViteServer } from "vite";
+import { fileURLToPath } from "url";
 
-async function startServer() {
-  const app = express();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+
+// WebSocket and MQTT logic (Only if not on Vercel)
+if (!process.env.VERCEL) {
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
     cors: {
@@ -14,12 +19,9 @@ async function startServer() {
     },
   });
 
-  const PORT = 3000;
-
-  // MQTT Client Setup
   const mqttBroker = process.env.MQTT_BROKER_URL || "mqtt://broker.hivemq.com";
   const mqttTopic = process.env.MQTT_TOPIC || "robot/arm/telemetry";
-  
+
   console.log(`Connecting to MQTT Broker: ${mqttBroker}`);
   const mqttClient = mqtt.connect(mqttBroker);
 
@@ -37,7 +39,7 @@ async function startServer() {
     }
   });
 
-  // Simulator Mode (if no MQTT data is coming in, or for demo purposes)
+  // Simulator Mode
   let simulatorEnabled = true;
   setInterval(() => {
     if (simulatorEnabled) {
@@ -64,17 +66,22 @@ async function startServer() {
     });
 
     socket.on("manual_control", (data: any) => {
-      // Broadcast manual control data to all clients
       io.emit("robot_data", { ...data, timestamp: Date.now(), source: "manual" });
-      
-      // Optionally publish to MQTT so the real robot moves
       const mqttTopicCmd = process.env.MQTT_TOPIC_COMMAND || "robot/arm/command";
       mqttClient.publish(mqttTopicCmd, JSON.stringify(data));
     });
   });
 
-  // Vite middleware for development
+  const PORT = 3000;
+  httpServer.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+// Vite middleware for development
+async function setupApp() {
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -87,10 +94,8 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
-
-  httpServer.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
 }
 
-startServer();
+await setupApp();
+
+export default app;
