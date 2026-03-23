@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { RobotData, LogEntry } from "../types";
 import { RobotScene } from "./RobotArm";
-import { GoogleGenAI } from "@google/genai";
 import { 
   Activity, 
   Cpu, 
@@ -58,21 +57,24 @@ const Dashboard: React.FC = () => {
   const runAiDiagnostic = async () => {
     setIsAnalyzing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Analyze this robotic arm telemetry and provide a brief diagnostic (max 2 sentences):
-        Base: ${data.base}°, Shoulder: ${data.shoulder}°, Elbow: ${data.elbow}°, 
-        Wrist P: ${data.wrist_pitch}°, Wrist R: ${data.wrist_roll}°, Gripper: ${data.gripper}%.
-        System Status: ${isConnected ? "Online" : "Offline"}, Source: ${data.source}.`,
-        config: {
-          systemInstruction: "You are a senior robotics engineer providing brief, technical system diagnostics.",
-        }
+      const response = await fetch("/api/diagnostics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          telemetry: { ...data, isConnected } 
+        }),
       });
-      setAiAnalysis(response.text || "Analysis complete. No anomalies detected.");
-    } catch (error) {
+      
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Failed to run analysis");
+      }
+      
+      const result = await response.json();
+      setAiAnalysis(result.analysis);
+    } catch (error: any) {
       console.error("AI Diagnostic failed:", error);
-      setAiAnalysis("Failed to connect to AI diagnostic service.");
+      setAiAnalysis(error.message || "Failed to connect to AI diagnostic service.");
     } finally {
       setIsAnalyzing(false);
     }

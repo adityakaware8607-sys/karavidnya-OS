@@ -4,11 +4,41 @@ import { Server } from "socket.io";
 import mqtt from "mqtt";
 import path from "path";
 import { fileURLToPath } from "url";
+import { GoogleGenAI } from "@google/genai";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.use(express.json());
+
+// API routes
+app.post("/api/diagnostics", async (req, res) => {
+  const { telemetry } = req.body;
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey) {
+    return res.status(500).json({ error: "GEMINI_API_KEY not configured on server." });
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Analyze this robotic arm telemetry and provide a brief diagnostic (max 2 sentences):
+      Base: ${telemetry.base}°, Shoulder: ${telemetry.shoulder}°, Elbow: ${telemetry.elbow}°, 
+      Wrist P: ${telemetry.wrist_pitch}°, Wrist R: ${telemetry.wrist_roll}°, Gripper: ${telemetry.gripper}%.
+      System Status: ${telemetry.isConnected ? "Online" : "Offline"}, Source: ${telemetry.source}.`,
+      config: {
+        systemInstruction: "You are a senior robotics engineer providing brief, technical system diagnostics.",
+      }
+    });
+    res.json({ analysis: response.text || "Analysis complete. No anomalies detected." });
+  } catch (error) {
+    console.error("AI Diagnostic failed:", error);
+    res.status(500).json({ error: "Failed to connect to AI diagnostic service." });
+  }
+});
 
 // WebSocket and MQTT logic (Only if not on Vercel)
 if (!process.env.VERCEL) {

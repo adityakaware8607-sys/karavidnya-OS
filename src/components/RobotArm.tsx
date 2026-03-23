@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
-import { useFrame } from "@react-three/fiber";
-import { Box, Cylinder, PerspectiveCamera, OrbitControls, Grid, Environment, ContactShadows } from "@react-three/drei";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { Box, Cylinder, PerspectiveCamera, OrbitControls, Grid, Environment, ContactShadows, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { RobotData } from "../types";
 
@@ -171,5 +171,3 @@ export const RobotScene: React.FC<RobotSceneProps> = ({ data, swarmCount }) => {
   );
 };
 
-import { Canvas } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
